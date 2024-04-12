@@ -135,23 +135,25 @@ pub struct TwoPicker {
 }
 
 impl TwoPicker {
+    const IMAGE_SIZE: usize = 128;
+
     pub fn get_color(&self, uv: Point) -> Color {
         Color::hsl(self.hue, uv.x, 1.0 - uv.y)
     }
 
     pub fn create_image(&self) -> Image {
-        let mut pixels = vec![0u8; 4 * 256 * 256];
+        let mut pixels = vec![0u8; 4 * Self::IMAGE_SIZE * Self::IMAGE_SIZE];
 
-        for j in 0..256 {
-            let v = j as f32 / 255.0;
+        for j in 0..Self::IMAGE_SIZE {
+            let v = j as f32 / (Self::IMAGE_SIZE - 1) as f32;
 
-            for i in 0..256 {
-                let u = i as f32 / 255.0;
+            for i in 0..Self::IMAGE_SIZE {
+                let u = i as f32 / (Self::IMAGE_SIZE - 1) as f32;
 
                 let uv = Point::new(u, v);
                 let color = self.get_color(uv);
 
-                let index = 4 * (j * 256 + i);
+                let index = 4 * (j * Self::IMAGE_SIZE + i);
 
                 let [r, g, b, a] = color.to_rgba8();
                 pixels[index] = r;
@@ -161,7 +163,7 @@ impl TwoPicker {
             }
         }
 
-        Image::new(pixels, 256, 256)
+        Image::new(pixels, Self::IMAGE_SIZE as u32, Self::IMAGE_SIZE as u32)
     }
 }
 

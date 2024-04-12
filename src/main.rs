@@ -53,7 +53,7 @@ fn theme_button(data: &mut Data) -> impl View<Data> {
         .border_radius([12.0, 0.0, 0.0, 0.0])
         .border_bottom(1.0);
 
-    let view = tooltip("Change theme", view);
+    let view = tooltip(view, "Change theme");
 
     on_click(view, |_, data: &mut Data| data.theme = data.theme.swap())
 }
@@ -63,7 +63,7 @@ fn close_button() -> impl View<Data> {
         .color(palette().accent())
         .border_radius([0.0, 12.0, 0.0, 0.0]);
 
-    let view = tooltip("Quit", view);
+    let view = tooltip(view, "Quit");
 
     on_click(view, |cx, _| cx.quit())
 }
@@ -100,14 +100,38 @@ fn picker(data: &mut Data) -> impl View<Data> {
     vstack![view, color].gap(20.0)
 }
 
+fn copy_button<T>() -> impl View<T> {
+    let mut init = false;
+
+    animate(move |copied: &mut bool, cx, _, _| {
+        if !cx.is_hot() {
+            *copied = false;
+        }
+
+        if !(cx.active_changed() || cx.hot_changed()) && init {
+            return None;
+        }
+
+        init = true;
+
+        let copy = button(fa::icon("copy").size(12.0))
+            .color(palette().secondary())
+            .padding(6.0);
+
+        if cx.is_active() {
+            *copied = true;
+        }
+
+        if *copied {
+            Some(tooltip(copy, "Copied!"))
+        } else {
+            Some(tooltip(copy, "Copy"))
+        }
+    })
+}
+
 fn copyable_text<T>(shown: &str, copied: &str) -> impl View<T> {
-    let copy = button(fa::icon("copy").size(12.0))
-        .color(palette().secondary())
-        .padding(6.0);
-
-    let copy = tooltip("Copy", copy);
-
-    let copy = on_click(copy, {
+    let copy = on_click(copy_button(), {
         let copied = copied.to_owned();
         move |cx, _| {
             cx.clipboard().set(copied.clone());
@@ -215,20 +239,22 @@ fn ui(data: &mut Data) -> impl View<Data> {
     })
 }
 
-fn style() -> Style {
-    Style::new().with(Palette::dark()).with(TextStyle {
-        font_family: FontFamily::Monospace,
-        ..Default::default()
-    })
+fn style() -> Styles {
+    Styles::new()
+        .with(Palette::dark())
+        .build(|style| TextStyle {
+            font_family: FontFamily::Monospace,
+            ..Styled::from_style(style)
+        })
 }
 
 fn main() {
     let window = WindowDescriptor::new()
         .title("hex")
-        .resizable(false)
         .decorated(false)
         .size(340, 500)
-        .color(Color::TRANSPARENT);
+        .color(Color::TRANSPARENT)
+        .icon(include_image!("icon.png"));
 
     Launcher::new(Data::default())
         .window(window, ui)
