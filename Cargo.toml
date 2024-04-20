@@ -6,7 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies.ori]
-git = "https://github.com/ChangeCaps/ori.git"
+#git = "https://github.com/ChangeCaps/ori.git"
+path = "../ori"
 features = ["font-awesome", "image"]
 
 [profile.dev]

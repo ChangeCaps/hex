@@ -6,7 +6,7 @@ pub struct OnePicker;
 
 impl OnePicker {
     pub fn get_color(hue: f32) -> Color {
-        Color::hsl(hue, 1.0, 0.5)
+        Color::hsv(hue, 1.0, 1.0)
     }
 
     pub fn create_image() -> Image {
@@ -55,7 +55,7 @@ impl View<Data> for OnePicker {
     }
 
     fn event(&mut self, state: &mut Self::State, cx: &mut EventCx, data: &mut Data, event: &Event) {
-        if let Some(e) = event.get::<PointerPressed>() {
+        if let Event::PointerPressed(e) = event {
             if !cx.is_hot() {
                 return;
             }
@@ -63,8 +63,8 @@ impl View<Data> for OnePicker {
             let local = cx.local(e.position);
             let hue = local.y / cx.size().height * 360.0;
 
-            let (_, s, l) = data.color.to_hsl();
-            data.color = Color::hsl(hue, s, l);
+            let (_, s, l) = data.color.to_hsv();
+            data.color = Color::hsv(hue, s, l);
             data.hue = hue;
 
             state.clicked = true;
@@ -73,7 +73,7 @@ impl View<Data> for OnePicker {
             cx.request_draw();
         }
 
-        if let Some(e) = event.get::<PointerMoved>() {
+        if let Event::PointerMoved(e) = event {
             if !state.clicked {
                 return;
             }
@@ -82,15 +82,15 @@ impl View<Data> for OnePicker {
             let mut hue = local.y / cx.size().height * 360.0;
             hue = hue.clamp(0.0, 360.0);
 
-            let (_, s, l) = data.color.to_hsl();
-            data.color = Color::hsl(hue, s, l);
+            let (_, s, l) = data.color.to_hsv();
+            data.color = Color::hsv(hue, s, l);
             data.hue = hue;
 
             cx.request_rebuild();
             cx.request_draw();
         }
 
-        if event.is::<PointerReleased>() {
+        if matches!(event, Event::PointerReleased(_)) {
             state.clicked = false;
         }
     }
@@ -112,7 +112,7 @@ impl View<Data> for OnePicker {
         data: &mut Data,
         canvas: &mut Canvas,
     ) {
-        canvas.set_view(cx.id());
+        canvas.set_hoverable(cx.id());
         canvas.draw_quad(cx.rect(), state.image.clone(), 6.0, 0.0, Color::TRANSPARENT);
 
         let y = data.hue / 360.0 * cx.size().height;
@@ -135,35 +135,8 @@ pub struct TwoPicker {
 }
 
 impl TwoPicker {
-    const IMAGE_SIZE: usize = 128;
-
     pub fn get_color(&self, uv: Point) -> Color {
-        Color::hsl(self.hue, uv.x, 1.0 - uv.y)
-    }
-
-    pub fn create_image(&self) -> Image {
-        let mut pixels = vec![0u8; 4 * Self::IMAGE_SIZE * Self::IMAGE_SIZE];
-
-        for j in 0..Self::IMAGE_SIZE {
-            let v = j as f32 / (Self::IMAGE_SIZE - 1) as f32;
-
-            for i in 0..Self::IMAGE_SIZE {
-                let u = i as f32 / (Self::IMAGE_SIZE - 1) as f32;
-
-                let uv = Point::new(u, v);
-                let color = self.get_color(uv);
-
-                let index = 4 * (j * Self::IMAGE_SIZE + i);
-
-                let [r, g, b, a] = color.to_rgba8();
-                pixels[index] = r;
-                pixels[index + 1] = g;
-                pixels[index + 2] = b;
-                pixels[index + 3] = a;
-            }
-        }
-
-        Image::new(pixels, Self::IMAGE_SIZE as u32, Self::IMAGE_SIZE as u32)
+        Color::hsv(self.hue, uv.x, 1.0 - uv.y)
     }
 }
 
@@ -177,25 +150,22 @@ impl View<Data> for TwoPicker {
 
     fn build(&mut self, _cx: &mut BuildCx, _data: &mut Data) -> Self::State {
         TwoPickerState {
-            image: self.create_image(),
+            image: include_image!("saturation_value_gradient.png"),
             clicked: false,
         }
     }
 
     fn rebuild(
         &mut self,
-        state: &mut Self::State,
+        _state: &mut Self::State,
         _cx: &mut RebuildCx,
         _data: &mut Data,
-        old: &Self,
+        _old: &Self,
     ) {
-        if self.hue != old.hue {
-            state.image = self.create_image();
-        }
     }
 
     fn event(&mut self, state: &mut Self::State, cx: &mut EventCx, data: &mut Data, event: &Event) {
-        if let Some(e) = event.get::<PointerPressed>() {
+        if let Event::PointerPressed(e) = event {
             if !cx.is_hot() {
                 return;
             }
@@ -210,7 +180,7 @@ impl View<Data> for TwoPicker {
             cx.request_draw();
         }
 
-        if let Some(e) = event.get::<PointerMoved>() {
+        if let Event::PointerMoved(e) = event {
             if !state.clicked {
                 return;
             }
@@ -225,7 +195,7 @@ impl View<Data> for TwoPicker {
             cx.request_draw();
         }
 
-        if event.is::<PointerReleased>() {
+        if matches!(event, Event::PointerReleased(_)) {
             state.clicked = false;
         }
     }
@@ -247,10 +217,18 @@ impl View<Data> for TwoPicker {
         data: &mut Data,
         canvas: &mut Canvas,
     ) {
-        canvas.set_view(cx.id());
+        canvas.set_hoverable(cx.id());
+
+        canvas.draw_quad(
+            cx.rect(),
+            Color::hsv(data.hue, 1.0, 1.0),
+            0.0,
+            0.0,
+            Color::TRANSPARENT,
+        );
         canvas.draw_quad(cx.rect(), state.image.clone(), 0.0, 0.0, Color::TRANSPARENT);
 
-        let (_, s, l) = data.color.to_hsl();
+        let (_, s, l) = data.color.to_hsv();
         let uv = Point::new(s, 1.0 - l) * cx.size();
 
         canvas.draw_quad(

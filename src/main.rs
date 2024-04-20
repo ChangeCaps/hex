@@ -25,8 +25,11 @@ impl Theme {
     }
 }
 
+struct Quit;
+
 pub struct Data {
     hue: f32,
+    ori: bool,
     color: Color,
     theme: Theme,
 }
@@ -35,6 +38,7 @@ impl Default for Data {
     fn default() -> Self {
         Self {
             hue: Default::default(),
+            ori: false,
             color: Color::BLACK,
             theme: Theme::Dark,
         }
@@ -65,7 +69,7 @@ fn close_button() -> impl View<Data> {
 
     let view = tooltip(view, "Quit");
 
-    on_click(view, |cx, _| cx.quit())
+    on_click(view, |cx, _| cx.cmd(Quit))
 }
 
 fn top_bar(data: &mut Data) -> impl View<Data> {
@@ -150,7 +154,7 @@ fn round(x: f32, decimals: u32) -> f32 {
 }
 
 fn hsl(data: &mut Data) -> impl View<Data> {
-    let (h, s, l) = data.color.to_hsl();
+    let (h, s, l) = data.color.to_hsv();
     let shown = format!(
         "hsl({: <5.0}, {: <4}, {: <4})",
         h,
@@ -158,6 +162,18 @@ fn hsl(data: &mut Data) -> impl View<Data> {
         format!("{:.0}%", l * 100.0),
     );
     let copied = format!("hsl({}, {}, {})", h, s * 100.0, l * 100.0);
+    copyable_text(&shown, &copied)
+}
+
+fn hsv(data: &mut Data) -> impl View<Data> {
+    let (h, s, v) = data.color.to_hsv();
+    let shown = format!(
+        "hsv({: <5.0}, {: <4}, {: <4})",
+        h,
+        format!("{:.0}%", s * 100.0),
+        format!("{:.0}%", v * 100.0),
+    );
+    let copied = format!("hsv({}, {}, {})", h, s * 100.0, v * 100.0);
     copyable_text(&shown, &copied)
 }
 
@@ -188,6 +204,26 @@ fn ori_hsl(data: &mut Data) -> impl View<Data> {
         round(s, 2),
         round(l, 2)
     );
+
+    copyable_text(&shown, &copied)
+}
+
+fn ori_hsv(data: &mut Data) -> impl View<Data> {
+    let (h, s, v) = data.color.to_hsv();
+    let shown = format!(
+        "hsv({: <5?}, {: <4?}, {: <4?})",
+        round(h, 1),
+        round(s, 2),
+        round(v, 2)
+    );
+
+    let copied = format!(
+        "hsv({:?}, {:?}, {:?})",
+        round(h, 1),
+        round(s, 2),
+        round(v, 2)
+    );
+
     copyable_text(&shown, &copied)
 }
 
@@ -209,18 +245,39 @@ fn ori_rgb(data: &mut Data) -> impl View<Data> {
     copyable_text(&shown, &copied)
 }
 
-fn output(data: &mut Data) -> impl View<Data> {
-    let view = vstack![
-        hsl(data),
-        rgb(data),
-        ori_hsl(data),
-        ori_rgb(data),
-        hex(data),
-    ]
-    .align(Align::Start)
-    .gap(2.0);
+fn ori_hex(data: &mut Data) -> impl View<Data> {
+    let hex = format!("hex(\"{}\")", data.color.to_hex());
+    copyable_text(&hex, &hex)
+}
 
-    width(250.0, view)
+fn output(data: &mut Data) -> impl View<Data> {
+    let ori = hstack![
+        text("Output Ori").font_size(12.0),
+        on_click(checkbox(data.ori), |_, data: &mut Data| {
+            data.ori = !data.ori;
+        }),
+    ]
+    .justify(Justify::SpaceBetween);
+
+    let view = if data.ori {
+        vstack![
+            ori,
+            any(ori_hsv(data)),
+            any(ori_hsl(data)),
+            any(ori_rgb(data)),
+            any(ori_hex(data)),
+        ]
+    } else {
+        vstack![
+            ori,
+            any(hsv(data)),
+            any(hsl(data)),
+            any(rgb(data)),
+            any(hex(data)),
+        ]
+    };
+
+    width(250.0, view.align(Align::Start).gap(2.0))
 }
 
 fn content(data: &mut Data) -> impl View<Data> {
@@ -239,12 +296,31 @@ fn ui(data: &mut Data) -> impl View<Data> {
     })
 }
 
+struct AppDelegate;
+
+impl Delegate<Data> for AppDelegate {
+    fn event(&mut self, cx: &mut DelegateCx<Data>, _data: &mut Data, event: &Event) -> bool {
+        if event.is_cmd::<Quit>() {
+            cx.quit();
+            return true;
+        }
+
+        false
+    }
+}
+
 fn style() -> Styles {
     Styles::new()
         .with(Palette::dark())
         .build(|style| TextStyle {
             font_family: FontFamily::Monospace,
-            ..Styled::from_style(style)
+            ..Style::style(style)
+        })
+        .build(|style| CheckboxStyle {
+            size: 24.0,
+            border_width: BorderWidth::all(1.0),
+            border_radius: BorderRadius::all(4.0),
+            ..Style::style(style)
         })
 }
 
@@ -254,10 +330,13 @@ fn main() {
         .decorated(false)
         .size(340, 500)
         .color(Color::TRANSPARENT)
-        .icon(include_image!("icon.png"));
+        .icon(include_image!("icon.png"))
+        .resizable(false);
 
-    Launcher::new(Data::default())
+    let app = App::build()
+        .delegate(AppDelegate)
         .window(window, ui)
-        .style(style())
-        .launch();
+        .style(style());
+
+    ori::launch(app, Data::default()).unwrap();
 }
