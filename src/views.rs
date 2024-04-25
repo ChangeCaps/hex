@@ -117,15 +117,23 @@ impl View<Data> for OnePicker {
 
         let y = data.hue / 360.0 * cx.size().height;
 
+        let center = Point::new(cx.rect().min.x + cx.size().width / 2.0, y).round();
+        let size = Size::new(cx.size().width + 4.0, 4.0);
+
         canvas.draw_quad(
-            Rect::center_size(
-                Point::new(cx.rect().min.x + cx.size().width / 2.0, y).round(),
-                Size::new(cx.size().width + 4.0, 6.0),
-            ),
+            Rect::center_size(center, size),
             Color::TRANSPARENT,
-            2.0,
-            2.0,
+            0.0,
+            1.0,
             Color::WHITE,
+        );
+
+        canvas.draw_quad(
+            Rect::center_size(center, size + 2.0),
+            Color::TRANSPARENT,
+            0.0,
+            1.0,
+            Color::BLACK,
         );
     }
 }
@@ -222,11 +230,11 @@ impl View<Data> for TwoPicker {
         canvas.draw_quad(
             cx.rect(),
             Color::hsv(data.hue, 1.0, 1.0),
-            0.0,
+            6.0,
             0.0,
             Color::TRANSPARENT,
         );
-        canvas.draw_quad(cx.rect(), state.image.clone(), 0.0, 0.0, Color::TRANSPARENT);
+        canvas.draw_quad(cx.rect(), state.image.clone(), 6.0, 0.0, Color::TRANSPARENT);
 
         let (_, s, l) = data.color.to_hsv();
         let uv = Point::new(s, 1.0 - l) * cx.size();

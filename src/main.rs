@@ -25,22 +25,26 @@ impl Theme {
     }
 }
 
-struct Quit;
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Output {
+    Css,
+    Ori,
+}
 
 pub struct Data {
     hue: f32,
-    ori: bool,
     color: Color,
     theme: Theme,
+    output: Output,
 }
 
 impl Default for Data {
     fn default() -> Self {
         Self {
             hue: Default::default(),
-            ori: false,
             color: Color::BLACK,
             theme: Theme::Dark,
+            output: Output::Css,
         }
     }
 }
@@ -52,8 +56,7 @@ fn theme_button(data: &mut Data) -> impl View<Data> {
     };
 
     let view = button(icon)
-        .color(palette().secondary())
-        .border_color(palette().secondary_dark())
+        .color(palette().surface)
         .border_radius([12.0, 0.0, 0.0, 0.0])
         .border_bottom(1.0);
 
@@ -63,13 +66,14 @@ fn theme_button(data: &mut Data) -> impl View<Data> {
 }
 
 fn close_button() -> impl View<Data> {
-    let view = button(fa::icon("xmark"))
-        .color(palette().accent())
-        .border_radius([0.0, 12.0, 0.0, 0.0]);
+    let view = button(fa::icon("xmark").color(palette().surface))
+        .color(palette().error)
+        .border_radius([0.0, 12.0, 0.0, 0.0])
+        .border_bottom(1.0);
 
     let view = tooltip(view, "Quit");
 
-    on_click(view, |cx, _| cx.cmd(Quit))
+    on_click(view, |cx, _| cx.cmd(AppCommand::Quit))
 }
 
 fn top_bar(data: &mut Data) -> impl View<Data> {
@@ -79,28 +83,27 @@ fn top_bar(data: &mut Data) -> impl View<Data> {
 
     let view = hstack![theme, title, close].justify(Justify::SpaceBetween);
     let view = (container(view).border_bottom(1.0)).border_radius([12.0, 12.0, 0.0, 0.0]);
-    let view = on_press(trigger(view), |cx, _| cx.window().drag()).descendants(false);
-    width(FILL, view)
+    on_press(trigger(view), |_, _| {}).descendants(false)
 }
 
 fn one_picker() -> impl View<Data> {
-    container(pad(2.0, height(200.0, OnePicker)))
-        .border_radius(8.0)
-        .border_width(2.0)
+    height(200.0, OnePicker)
 }
 
 fn two_picker(data: &mut Data) -> impl View<Data> {
     let view = TwoPicker { hue: data.hue };
-    container(pad(2.0, size(200.0, view))).border_width(2.0)
+    size(200.0, view)
 }
 
 fn picker(data: &mut Data) -> impl View<Data> {
     let color = container(height(50.0, ()))
         .background(data.color)
-        .border_width(2.0)
         .border_radius(6.0);
 
-    let view = hstack![two_picker(data), one_picker()].justify(Justify::SpaceBetween);
+    let view = hstack![two_picker(data), one_picker()]
+        .justify(Justify::SpaceBetween)
+        .gap(20.0);
+
     vstack![view, color].gap(20.0)
 }
 
@@ -119,7 +122,7 @@ fn copy_button<T>() -> impl View<T> {
         init = true;
 
         let copy = button(fa::icon("copy").size(12.0))
-            .color(palette().secondary())
+            .color(palette().surface)
             .padding(6.0);
 
         if cx.is_active() {
@@ -153,7 +156,7 @@ fn round(x: f32, decimals: u32) -> f32 {
     (x * y).round() / y
 }
 
-fn hsl(data: &mut Data) -> impl View<Data> {
+fn hsl_css(data: &mut Data) -> impl View<Data> {
     let (h, s, l) = data.color.to_hsv();
     let shown = format!(
         "hsl({: <5.0}, {: <4}, {: <4})",
@@ -165,7 +168,7 @@ fn hsl(data: &mut Data) -> impl View<Data> {
     copyable_text(&shown, &copied)
 }
 
-fn hsv(data: &mut Data) -> impl View<Data> {
+fn hsv_css(data: &mut Data) -> impl View<Data> {
     let (h, s, v) = data.color.to_hsv();
     let shown = format!(
         "hsv({: <5.0}, {: <4}, {: <4})",
@@ -177,14 +180,14 @@ fn hsv(data: &mut Data) -> impl View<Data> {
     copyable_text(&shown, &copied)
 }
 
-fn rgb(data: &mut Data) -> impl View<Data> {
+fn rgb_css(data: &mut Data) -> impl View<Data> {
     let [r, g, b, _] = data.color.to_rgba8();
     let shown = format!("rgb({: <5}, {: <4}, {: <4})", r, g, b);
     let copied = format!("rgb({}, {}, {})", r, g, b);
     copyable_text(&shown, &copied)
 }
 
-fn hex(data: &mut Data) -> impl View<Data> {
+fn hex_css(data: &mut Data) -> impl View<Data> {
     let hex = data.color.to_hex();
     copyable_text(&hex, &hex)
 }
@@ -250,68 +253,77 @@ fn ori_hex(data: &mut Data) -> impl View<Data> {
     copyable_text(&hex, &hex)
 }
 
-fn output(data: &mut Data) -> impl View<Data> {
-    let ori = hstack![
-        text("Output Ori").font_size(12.0),
-        on_click(checkbox(data.ori), |_, data: &mut Data| {
-            data.ori = !data.ori;
-        }),
-    ]
-    .justify(Justify::SpaceBetween);
-
-    let view = if data.ori {
-        vstack![
-            ori,
-            any(ori_hsv(data)),
-            any(ori_hsl(data)),
-            any(ori_rgb(data)),
-            any(ori_hex(data)),
-        ]
-    } else {
-        vstack![
-            ori,
-            any(hsv(data)),
-            any(hsl(data)),
-            any(rgb(data)),
-            any(hex(data)),
-        ]
+fn output_button(data: &mut Data, output: Output) -> impl View<Data> {
+    let mut icon = match output {
+        Output::Css => text!("css").font_size(14.0),
+        Output::Ori => text!("ori").font_size(14.0),
     };
 
-    width(250.0, view.align(Align::Start).gap(2.0))
+    if data.output == output {
+        icon = icon.color(palette().surface);
+    }
+
+    let mut view = button(icon)
+        .color(palette().surface)
+        .border_radius(12.0)
+        .padding([8.0, 2.0]);
+
+    if data.output == output {
+        view = view.color(palette().secondary);
+    }
+
+    let view = tooltip(view, "Change output format");
+
+    on_click(view, move |_, data: &mut Data| data.output = output)
+}
+
+fn output_selector(data: &mut Data) -> impl View<Data> {
+    hstack![
+        output_button(data, Output::Css),
+        output_button(data, Output::Ori),
+    ]
+    .gap(8.0)
+}
+
+fn output(data: &mut Data) -> impl View<Data> {
+    let view = match data.output {
+        Output::Css => any(
+            vstack![hsl_css(data), hsv_css(data), rgb_css(data), hex_css(data),]
+                .align(Align::Start)
+                .gap(2.0),
+        ),
+        Output::Ori => any(
+            vstack![ori_hsl(data), ori_hsv(data), ori_rgb(data), ori_hex(data),]
+                .align(Align::Start)
+                .gap(2.0),
+        ),
+    };
+
+    vstack![
+        center(output_selector(data)),
+        container(pad(12.0, view))
+            .background(palette().surface_low)
+            .border_radius(4.0)
+    ]
+    .gap(4.0)
 }
 
 fn content(data: &mut Data) -> impl View<Data> {
-    let view = vstack![picker(data), center(output(data))].gap(20.0);
-
-    pad(24.0, width(270.0, view))
+    pad(24.0, vstack![picker(data), output(data)].gap(20.0))
 }
 
 fn ui(data: &mut Data) -> impl View<Data> {
     styled(data.theme.palette(), || {
-        let view = vstack![top_bar(data), content(data)].align(Align::Center);
+        let view = vstack![top_bar(data), content(data)].align(Align::Stretch);
 
         container(top(view))
-            .background(palette().background())
+            .background(palette().background)
             .border_radius(12.0)
     })
 }
 
-struct AppDelegate;
-
-impl Delegate<Data> for AppDelegate {
-    fn event(&mut self, cx: &mut DelegateCx<Data>, _data: &mut Data, event: &Event) -> bool {
-        if event.is_cmd::<Quit>() {
-            cx.quit();
-            return true;
-        }
-
-        false
-    }
-}
-
 fn style() -> Styles {
     Styles::new()
-        .with(Palette::dark())
         .build(|style| TextStyle {
             font_family: FontFamily::Monospace,
             ..Style::style(style)
@@ -325,18 +337,15 @@ fn style() -> Styles {
 }
 
 fn main() {
-    let window = WindowDescriptor::new()
+    let window = Window::new()
         .title("hex")
         .decorated(false)
-        .size(340, 500)
-        .color(Color::TRANSPARENT)
+        .fit_content()
+        .color(Some(Color::TRANSPARENT))
         .icon(include_image!("icon.png"))
         .resizable(false);
 
-    let app = App::build()
-        .delegate(AppDelegate)
-        .window(window, ui)
-        .style(style());
+    let app = App::build().window(window, ui).style(style());
 
     ori::launch(app, Data::default()).unwrap();
 }
