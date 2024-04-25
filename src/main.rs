@@ -83,7 +83,11 @@ fn top_bar(data: &mut Data) -> impl View<Data> {
 
     let view = hstack![theme, title, close].justify(Justify::SpaceBetween);
     let view = (container(view).border_bottom(1.0)).border_radius([12.0, 12.0, 0.0, 0.0]);
-    on_press(trigger(view), |_, _| {}).descendants(false)
+    on_press(trigger(view), |cx, _| {
+        let window_id = cx.window().id();
+        cx.cmd(AppCommand::DragWindow(window_id));
+    })
+    .descendants(false)
 }
 
 fn one_picker() -> impl View<Data> {
