@@ -100,7 +100,7 @@ fn picker(data: &mut Data) -> impl View<Data> {
             cx.rebuild();
         });
 
-    let color = container(height(50.0, ()))
+    let color = container(height(50.0, void()))
         .background(data.color)
         .border_radius(6.0);
 
